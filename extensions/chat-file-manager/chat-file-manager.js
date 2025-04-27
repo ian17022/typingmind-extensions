@@ -14,13 +14,14 @@
 
     // Add click handler
     fileManagerButton.addEventListener('click', async function() {
-        const mainContent = document.querySelector('[data-element-id="main-content"]');
-        if (!mainContent) {
-            console.error('Main content area not found');
+        // Find the chat container (this is where the chat UI normally appears)
+        const chatContainer = document.querySelector('#__next');
+        if (!chatContainer) {
+            console.error('Chat container not found');
             return;
         }
 
-        // Create panel with loading state
+        // Create our panel
         const panel = document.createElement('div');
         panel.className = 'p-4 bg-zinc-900 rounded-lg m-4';
         panel.innerHTML = `
@@ -32,9 +33,16 @@
                 <span>Loading chats...</span>
             </div>
         `;
-        
-        mainContent.innerHTML = '';
-        mainContent.appendChild(panel);
+
+        // Clear the chat container and add our panel
+        const mainArea = chatContainer.querySelector('main');
+        if (mainArea) {
+            mainArea.innerHTML = '';
+            mainArea.appendChild(panel);
+        } else {
+            chatContainer.innerHTML = '';
+            chatContainer.appendChild(panel);
+        }
 
         try {
             // Open IndexedDB
@@ -159,7 +167,7 @@
         }
     });
 
-    // Function to insert the button
+    // Rest of the code remains the same...
     function insertFileManagerButton() {
         const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
         if (teamsButton && teamsButton.parentNode) {
@@ -169,23 +177,19 @@
         return false;
     }
 
-    // Create an observer to watch for changes
     const observer = new MutationObserver((mutations) => {
         if (insertFileManagerButton()) {
             observer.disconnect();
         }
     });
 
-    // Start observing
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
 
-    // Try to insert immediately
     insertFileManagerButton();
 
-    // And try a few more times
     const maxAttempts = 10;
     let attempts = 0;
     const interval = setInterval(() => {
