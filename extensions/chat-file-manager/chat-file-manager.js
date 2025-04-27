@@ -4,26 +4,49 @@
             this.init();
         }
 
-        async init() {
-            // Wait for the DOM to be ready
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => this.createButton());
-            } else {
-                this.createButton();
-            }
+        init() {
+            // Use MutationObserver to watch for the sidebar
+            const observer = new MutationObserver((mutations) => {
+                if (this.insertButton()) {
+                    observer.disconnect();
+                }
+            });
+
+            // Start observing the document body for changes
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            // Also try to insert immediately and periodically
+            this.insertButton();
+            
+            // Backup approach: try several times
+            const maxAttempts = 10;
+            let attempts = 0;
+            const interval = setInterval(() => {
+                if (this.insertButton() || attempts >= maxAttempts) {
+                    clearInterval(interval);
+                }
+                attempts++;
+            }, 1000);
         }
 
-        createButton() {
-            // Find the sidebar where we want to add our button
-            const sidebar = document.querySelector('[data-element-id="side-bar"]');
-            if (!sidebar) return;
+        insertButton() {
+            // Try to find the teams button as reference point
+            const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
+            if (!teamsButton || !teamsButton.parentNode) return false;
 
-            // Create the button
+            // Check if our button already exists
+            if (document.querySelector('[data-element-id="file-size-view-button"]')) {
+                return true;
+            }
+
+            // Create our button
             const button = document.createElement('button');
-            button.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
             button.setAttribute('data-element-id', 'file-size-view-button');
-            
-            // Add button content
+            button.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
+
             button.innerHTML = `
                 <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
                     <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
@@ -36,46 +59,51 @@
             // Add click handler
             button.addEventListener('click', () => this.handleButtonClick());
 
-            // Add the button to sidebar
-            sidebar.appendChild(button);
+            // Insert the button after the teams button
+            teamsButton.parentNode.insertBefore(button, teamsButton.nextSibling);
 
             // Add styles
-            const style = document.createElement('style');
-            style.textContent = `
-                .file-size-panel {
-                    padding: 1rem;
-                    background: var(--tm-background-secondary);
-                    margin: 1rem;
-                    border-radius: 8px;
-                }
-                .chat-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0.8rem;
-                    margin-bottom: 0.5rem;
-                    background: var(--tm-background-primary);
-                    border-radius: 6px;
-                    border: 1px solid var(--tm-border-color);
-                }
-                .file-info {
-                    flex: 1;
-                }
-                .delete-btn {
-                    padding: 0.5rem;
-                    border-radius: 6px;
-                    border: none;
-                    background: var(--tm-danger-light);
-                    color: var(--tm-danger);
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                .delete-btn:hover {
-                    background: var(--tm-danger);
-                    color: white;
-                }
-            `;
-            document.head.appendChild(style);
+            if (!document.getElementById('chat-file-manager-styles')) {
+                const style = document.createElement('style');
+                style.id = 'chat-file-manager-styles';
+                style.textContent = `
+                    .file-size-panel {
+                        padding: 1rem;
+                        background: var(--tm-background-secondary);
+                        margin: 1rem;
+                        border-radius: 8px;
+                    }
+                    .chat-item {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 0.8rem;
+                        margin-bottom: 0.5rem;
+                        background: var(--tm-background-primary);
+                        border-radius: 6px;
+                        border: 1px solid var(--tm-border-color);
+                    }
+                    .file-info {
+                        flex: 1;
+                    }
+                    .delete-btn {
+                        padding: 0.5rem;
+                        border-radius: 6px;
+                        border: none;
+                        background: var(--tm-danger-light);
+                        color: var(--tm-danger);
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .delete-btn:hover {
+                        background: var(--tm-danger);
+                        color: white;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            return true;
         }
 
         async handleButtonClick() {
