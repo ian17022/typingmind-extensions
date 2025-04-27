@@ -1,41 +1,43 @@
-// File: chat-file-manager.js
-
 (function() {
-    // Constants
-    const DB_NAME = 'typingmind';
-    const FILE_TYPES = {
-        PDF: 'application/pdf',
-        IMAGE: 'image/'
-    };
-
     class ChatFileManager {
         constructor() {
             this.init();
         }
 
         async init() {
-            // Create the sidebar button
-            this.createSidebarButton();
-            
-            // Wait for IndexedDB to be ready
-            await this.initializeDB();
+            // Wait for the DOM to be ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.createButton());
+            } else {
+                this.createButton();
+            }
         }
 
-        createSidebarButton() {
-            // Create a new sidebar button element
-            const sidebarContainer = document.querySelector('[data-element-id="side-bar"]');
-            if (!sidebarContainer) return;
+        createButton() {
+            // Find the sidebar where we want to add our button
+            const sidebar = document.querySelector('[data-element-id="side-bar"]');
+            if (!sidebar) return;
 
+            // Create the button
             const button = document.createElement('button');
-            button.className = 'sidebar-button';
+            button.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
             button.setAttribute('data-element-id', 'file-size-view-button');
+            
+            // Add button content
             button.innerHTML = `
-                <span class="icon">📊</span>
-                <span class="label">File Size View</span>
+                <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
+                    <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M14 2H6C4.89 2 4 2.89 4 4V20C4 21.11 4.89 22 6 22H18C19.11 22 20 21.11 20 20V8L14 2M18 20H6V4H13V9H18V20M17 13H7V11H17V13M15 17H7V15H15V17Z"/>
+                    </svg>
+                </span>
+                <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Files</span>
             `;
 
-            button.addEventListener('click', () => this.handleSidebarButtonClick());
-            sidebarContainer.appendChild(button);
+            // Add click handler
+            button.addEventListener('click', () => this.handleButtonClick());
+
+            // Add the button to sidebar
+            sidebar.appendChild(button);
 
             // Add styles
             const style = document.createElement('style');
@@ -43,10 +45,9 @@
                 .file-size-panel {
                     padding: 1rem;
                     background: var(--tm-background-secondary);
-                    border-radius: 8px;
                     margin: 1rem;
+                    border-radius: 8px;
                 }
-
                 .chat-item {
                     display: flex;
                     justify-content: space-between;
@@ -57,32 +58,9 @@
                     border-radius: 6px;
                     border: 1px solid var(--tm-border-color);
                 }
-
-                .chat-info {
+                .file-info {
                     flex: 1;
-                    margin-right: 1rem;
                 }
-
-                .chat-title {
-                    font-weight: 500;
-                    margin-bottom: 0.25rem;
-                    display: block;
-                }
-
-                .chat-meta {
-                    font-size: 0.85em;
-                    color: var(--tm-text-secondary);
-                }
-
-                .file-badge {
-                    padding: 0.2rem 0.4rem;
-                    border-radius: 4px;
-                    background: var(--tm-accent-light);
-                    color: var(--tm-accent);
-                    margin-right: 0.5rem;
-                    font-size: 0.8em;
-                }
-
                 .delete-btn {
                     padding: 0.5rem;
                     border-radius: 6px;
@@ -92,7 +70,6 @@
                     cursor: pointer;
                     transition: all 0.2s;
                 }
-
                 .delete-btn:hover {
                     background: var(--tm-danger);
                     color: white;
@@ -101,145 +78,123 @@
             document.head.appendChild(style);
         }
 
-        async initializeDB() {
-            // We'll use the existing TypingMind IndexedDB
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME);
-                
-                request.onerror = () => reject('Could not connect to IndexedDB');
-                request.onsuccess = (event) => {
-                    this.db = event.target.result;
-                    resolve();
-                };
-            });
-        }
-
-        async getChatSizes() {
-            const transaction = this.db.transaction(['messages', 'attachments'], 'readonly');
-            const messageStore = transaction.objectStore('messages');
-            const attachmentStore = transaction.objectStore('attachments');
-
-            // Get all chats and their messages
-            const messages = await new Promise(resolve => {
-                messageStore.getAll().onsuccess = (event) => resolve(event.target.result);
-            });
-
-            // Get all attachments
-            const attachments = await new Promise(resolve => {
-                attachmentStore.getAll().onsuccess = (event) => resolve(event.target.result);
-            });
-
-            // Calculate sizes per chat
-            const chatSizes = {};
-            messages.forEach(msg => {
-                if (!chatSizes[msg.chatId]) {
-                    chatSizes[msg.chatId] = {
-                        size: 0,
-                        messageCount: 0,
-                        attachments: [],
-                        title: msg.chatTitle || 'Untitled Chat'
-                    };
-                }
-                chatSizes[msg.chatId].size += new Blob([JSON.stringify(msg)]).size;
-                chatSizes[msg.chatId].messageCount++;
-            });
-
-            // Add attachment sizes
-            attachments.forEach(attachment => {
-                if (chatSizes[attachment.chatId]) {
-                    chatSizes[attachment.chatId].size += attachment.size;
-                    chatSizes[attachment.chatId].attachments.push({
-                        type: attachment.type,
-                        size: attachment.size
-                    });
-                }
-            });
-
-            return Object.entries(chatSizes)
-                .map(([chatId, data]) => ({
-                    chatId,
-                    ...data
-                }))
-                .sort((a, b) => b.size - a.size);
-        }
-
-        async handleSidebarButtonClick() {
+        async handleButtonClick() {
             const mainContent = document.querySelector('[data-element-id="main-content"]');
             if (!mainContent) return;
 
+            // Create the panel
             const panel = document.createElement('div');
             panel.className = 'file-size-panel';
-            panel.innerHTML = '<h3>Chats by Size</h3>';
 
-            const chats = await this.getChatSizes();
-            
+            // Get all chats from IndexedDB
+            const chats = await this.getChatsWithSize();
+
+            // Sort chats by size
+            chats.sort((a, b) => b.size - a.size);
+
+            // Create content
+            panel.innerHTML = `
+                <h3 class="text-lg font-semibold mb-4">Chats by File Size</h3>
+                <div class="chat-list"></div>
+            `;
+
+            const chatList = panel.querySelector('.chat-list');
             chats.forEach(chat => {
                 const chatElement = document.createElement('div');
                 chatElement.className = 'chat-item';
-                
-                const hasImages = chat.attachments.some(a => a.type.startsWith('image/'));
-                const hasPDFs = chat.attachments.some(a => a.type === 'application/pdf');
-                
                 chatElement.innerHTML = `
-                    <div class="chat-info">
-                        <span class="chat-title">${chat.title}</span>
-                        <div class="chat-meta">
-                            ${hasImages ? '<span class="file-badge">🖼️ Images</span>' : ''}
-                            ${hasPDFs ? '<span class="file-badge">📄 PDFs</span>' : ''}
-                            Size: ${(chat.size / (1024 * 1024)).toFixed(2)} MB
-                            (${chat.messageCount} messages)
+                    <div class="file-info">
+                        <div class="chat-title font-medium">${chat.title || 'Untitled Chat'}</div>
+                        <div class="chat-meta text-sm opacity-70">
+                            ${this.formatSize(chat.size)}
+                            ${chat.hasImages ? '🖼️' : ''}
+                            ${chat.hasPDFs ? '📄' : ''}
                         </div>
                     </div>
-                    <button class="delete-btn" data-chat-id="${chat.chatId}">
-                        🗑️ Delete
-                    </button>
+                    <button class="delete-btn" data-chat-id="${chat.id}">Delete</button>
                 `;
 
-                chatElement.querySelector('.delete-btn').addEventListener('click', async (e) => {
-                    if (confirm('Are you sure you want to delete this chat and all its attachments?')) {
-                        await this.deleteChat(chat.chatId);
-                        chatElement.remove();
-                    }
+                chatElement.querySelector('.delete-btn').addEventListener('click', () => {
+                    this.deleteChat(chat.id);
+                    chatElement.remove();
                 });
 
-                panel.appendChild(chatElement);
+                chatList.appendChild(chatElement);
             });
 
+            // Clear main content and add our panel
             mainContent.innerHTML = '';
             mainContent.appendChild(panel);
         }
 
-        async deleteChat(chatId) {
-            const transaction = this.db.transaction(['messages', 'attachments'], 'readwrite');
-            const messageStore = transaction.objectStore('messages');
-            const attachmentStore = transaction.objectStore('attachments');
-
-            // Delete messages
-            await new Promise(resolve => {
-                const request = messageStore.index('chatId').getAll(chatId);
+        async getChatsWithSize() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('keyval-store', 1);
+                
+                request.onerror = () => reject(request.error);
                 request.onsuccess = (event) => {
-                    event.target.result.forEach(msg => {
-                        messageStore.delete(msg.id);
-                    });
-                    resolve();
-                };
-            });
-
-            // Delete attachments
-            await new Promise(resolve => {
-                const request = attachmentStore.index('chatId').getAll(chatId);
-                request.onsuccess = (event) => {
-                    event.target.result.forEach(attachment => {
-                        attachmentStore.delete(attachment.id);
-                    });
-                    resolve();
+                    const db = event.target.result;
+                    const transaction = db.transaction(['keyval'], 'readonly');
+                    const store = transaction.objectStore('keyval');
+                    
+                    const chats = [];
+                    store.openCursor().onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (cursor) {
+                            const chat = cursor.value;
+                            if (chat && chat.messages) {
+                                const size = new Blob([JSON.stringify(chat)]).size;
+                                const hasImages = chat.messages.some(m => m.type === 'image');
+                                const hasPDFs = chat.messages.some(m => m.type === 'pdf');
+                                
+                                chats.push({
+                                    id: cursor.key,
+                                    title: chat.title,
+                                    size,
+                                    hasImages,
+                                    hasPDFs
+                                });
+                            }
+                            cursor.continue();
+                        } else {
+                            resolve(chats);
+                        }
+                    };
                 };
             });
         }
+
+        async deleteChat(chatId) {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('keyval-store', 1);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+                    const transaction = db.transaction(['keyval'], 'readwrite');
+                    const store = transaction.objectStore('keyval');
+                    
+                    const deleteRequest = store.delete(chatId);
+                    deleteRequest.onsuccess = () => resolve();
+                    deleteRequest.onerror = () => reject(deleteRequest.error);
+                };
+            });
+        }
+
+        formatSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
     }
 
-    // Initialize the extension when the DOM is ready
-    document.addEventListener('DOMContentLoaded', () => {
-        new ChatFileManager();
-    });
+    // Initialize the extension
+    new ChatFileManager();
 })();
