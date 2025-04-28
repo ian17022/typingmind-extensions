@@ -14,14 +14,12 @@
 
     fileManagerButton.addEventListener('click', async function() {
         try {
-            // Open IndexedDB
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
                 request.onsuccess = (event) => resolve(event.target.result);
             });
 
-            // Get all chats
             const chats = await new Promise((resolve, reject) => {
                 const transaction = db.transaction(['keyval'], 'readonly');
                 const store = transaction.objectStore('keyval');
@@ -32,10 +30,15 @@
                     if (cursor) {
                         const chatData = cursor.value;
                         if (chatData && typeof chatData === 'object') {
+                            if (chats.length === 0) {
+                                console.log('Sample chat data:', chatData);
+                            }
+                            
                             const size = new Blob([JSON.stringify(chatData)]).size;
                             chats.push({
                                 id: cursor.key,
-                                title: chatData.chatTitle || 'Untitled Chat', // Changed from title to chatTitle
+                                title: chatData.title || chatData.chatTitle || chatData.name || 
+                                       chatData.messages?.[0]?.content?.slice(0, 30) || 'Untitled Chat',
                                 size: size,
                                 messageCount: chatData.messages?.length || 0
                             });
@@ -47,16 +50,13 @@
                 };
             });
 
-            // Sort chats by size and take top 20
             const top20Chats = chats
                 .sort((a, b) => b.size - a.size)
                 .slice(0, 20);
 
-            // Create the content panel
             const panel = document.createElement('div');
             panel.className = 'p-4 bg-zinc-900 rounded-lg m-4';
 
-            // Format file size function
             function formatSize(bytes) {
                 const units = ['B', 'KB', 'MB', 'GB'];
                 let size = bytes;
@@ -68,7 +68,6 @@
                 return `${size.toFixed(1)} ${units[unitIndex]}`;
             }
 
-            // Update panel with chat list
             panel.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl">Top 20 Largest Chats</h2>
@@ -99,9 +98,7 @@
                                                 const deleteRequest = store.delete('${chat.id}');
                                                 deleteRequest.onsuccess = () => {
                                                     const element = document.getElementById('chat-item-${chat.id}');
-                                                    if (element) {
-                                                        element.remove();
-                                                    }
+                                                    if (element) element.remove();
                                                 };
                                             };
                                         } catch (error) {
@@ -118,17 +115,30 @@
                 </div>
             `;
 
-            // Find main content area and replace content
-            const mainContent = document.querySelector('main');
-            if (mainContent) {
-                mainContent.innerHTML = '';
-                mainContent.appendChild(panel);
+            const container = document.createElement('div');
+            container.className = 'flex-1 h-full overflow-hidden';
+            container.appendChild(panel);
+
+            const appContainer = document.querySelector('[data-element-id="app-container"]') || 
+                               document.getElementById('__next');
+            
+            if (appContainer) {
+                const marker = document.createComment('file-manager-content');
+                const originalContent = appContainer.innerHTML;
+                appContainer.innerHTML = '';
+                appContainer.appendChild(marker);
+                appContainer.appendChild(container);
+
+                const backButton = document.createElement('button');
+                backButton.className = 'absolute top-4 left-4 px-3 py-1 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors';
+                backButton.innerHTML = '← Back';
+                backButton.onclick = () => {
+                    appContainer.innerHTML = originalContent;
+                };
+                container.insertBefore(backButton, container.firstChild);
             } else {
-                const container = document.getElementById('__next');
-                if (container) {
-                    container.innerHTML = '';
-                    container.appendChild(panel);
-                }
+                console.error('Could not find app container');
+                alert('Error: Could not find app container');
             }
 
         } catch (error) {
