@@ -3,6 +3,27 @@
     fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
 
+    // Create the overlay once and reuse it
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 hidden';
+    overlay.innerHTML = `
+        <div class="absolute inset-4 bg-zinc-900 rounded-lg overflow-auto">
+            <div class="sticky top-0 right-0 p-4 flex justify-end bg-zinc-900">
+                <button id="close-file-manager" class="px-3 py-1 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors">
+                    Close
+                </button>
+            </div>
+            <div id="file-manager-content" class="p-4">
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Add close handler
+    overlay.querySelector('#close-file-manager').addEventListener('click', () => {
+        overlay.classList.add('hidden');
+    });
+
     fileManagerButton.innerHTML = `
         <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
             <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
@@ -14,17 +35,6 @@
 
     fileManagerButton.addEventListener('click', async function() {
         try {
-            // Log all available containers and elements
-            console.log('Available elements:', {
-                nextDiv: document.getElementById('__next'),
-                mainElement: document.querySelector('main'),
-                contentArea: document.querySelector('.overflow-hidden.w-full.h-full'),
-                chatContainer: document.querySelector('[data-element-id="chat-container"]'),
-                chatMessages: document.querySelector('[data-element-id="chat-messages"]'),
-                allDataElements: document.querySelectorAll('[data-element-id]')
-            });
-
-            // First get the data
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
@@ -72,101 +82,64 @@
                 return `${size.toFixed(1)} ${units[unitIndex]}`;
             }
 
-            // Create our content
-            const content = document.createElement('div');
-            content.className = 'flex flex-col h-full';
-            content.innerHTML = `
-                <div class="flex-1 overflow-auto p-4">
-                    <div class="max-w-4xl mx-auto">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
-                            <span class="text-sm opacity-70">Total chats: ${chats.length}</span>
-                        </div>
-                        <div class="space-y-2" id="chat-list">
-                            ${top20Chats.map((chat, index) => `
-                                <div class="flex items-center justify-between p-3 bg-zinc-800 rounded-lg" id="chat-item-${chat.id}">
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm opacity-50">#${index + 1}</span>
-                                            <span class="font-medium truncate">${chat.title}</span>
-                                        </div>
-                                        <div class="text-sm opacity-70 mt-1">
-                                            ${formatSize(chat.size)} • ${chat.messageCount} messages
-                                        </div>
-                                        ${chat.preview ? `
-                                            <div class="text-sm opacity-50 mt-1 truncate">
-                                                ${chat.preview}
-                                            </div>
-                                        ` : ''}
+            // Update the content
+            const contentArea = overlay.querySelector('#file-manager-content');
+            contentArea.innerHTML = `
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
+                        <span class="text-sm opacity-70">Total chats: ${chats.length}</span>
+                    </div>
+                    <div class="space-y-2" id="chat-list">
+                        ${top20Chats.map((chat, index) => `
+                            <div class="flex items-center justify-between p-3 bg-zinc-800 rounded-lg" id="chat-item-${chat.id}">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm opacity-50">#${index + 1}</span>
+                                        <span class="font-medium truncate">${chat.title}</span>
                                     </div>
-                                    <button 
-                                        class="ml-4 px-3 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
-                                        onclick="(async function() { 
-                                            if(confirm('Delete this chat?')) {
-                                                try {
-                                                    const request = indexedDB.open('keyval-store', 1);
-                                                    request.onsuccess = (event) => {
-                                                        const db = event.target.result;
-                                                        const tx = db.transaction(['keyval'], 'readwrite');
-                                                        const store = tx.objectStore('keyval');
-                                                        const deleteRequest = store.delete('${chat.id}');
-                                                        deleteRequest.onsuccess = () => {
-                                                            const element = document.getElementById('chat-item-${chat.id}');
-                                                            if (element) element.remove();
-                                                        };
-                                                    };
-                                                } catch (error) {
-                                                    console.error('Error deleting chat:', error);
-                                                    alert('Error deleting chat');
-                                                }
-                                            }
-                                        })()"
-                                    >
-                                        Delete
-                                    </button>
+                                    <div class="text-sm opacity-70 mt-1">
+                                        ${formatSize(chat.size)} • ${chat.messageCount} messages
+                                    </div>
+                                    ${chat.preview ? `
+                                        <div class="text-sm opacity-50 mt-1 truncate">
+                                            ${chat.preview}
+                                        </div>
+                                    ` : ''}
                                 </div>
-                            `).join('')}
-                        </div>
+                                <button 
+                                    class="ml-4 px-3 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
+                                    onclick="(async function() { 
+                                        if(confirm('Delete this chat?')) {
+                                            try {
+                                                const request = indexedDB.open('keyval-store', 1);
+                                                request.onsuccess = (event) => {
+                                                    const db = event.target.result;
+                                                    const tx = db.transaction(['keyval'], 'readwrite');
+                                                    const store = tx.objectStore('keyval');
+                                                    const deleteRequest = store.delete('${chat.id}');
+                                                    deleteRequest.onsuccess = () => {
+                                                        const element = document.getElementById('chat-item-${chat.id}');
+                                                        if (element) element.remove();
+                                                    };
+                                                };
+                                            } catch (error) {
+                                                console.error('Error deleting chat:', error);
+                                                alert('Error deleting chat');
+                                            }
+                                        }
+                                    })()"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `;
 
-            // Try to find the right container
-            const mainContainer = document.querySelector('main');
-            if (mainContainer) {
-                const originalContent = mainContainer.innerHTML;
-                const wrapper = document.createElement('div');
-                wrapper.className = 'relative h-full';
-                wrapper.appendChild(content);
-                
-                const backButton = document.createElement('button');
-                backButton.className = 'absolute top-4 left-4 px-3 py-1 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors z-50';
-                backButton.innerHTML = '← Back';
-                backButton.onclick = () => {
-                    mainContainer.innerHTML = originalContent;
-                };
-                wrapper.appendChild(backButton);
-                
-                mainContainer.innerHTML = '';
-                mainContainer.appendChild(wrapper);
-            } else {
-                // Try the New Chat approach
-                const newChatButton = document.querySelector('[data-element-id="new-chat-button"]');
-                if (newChatButton) {
-                    newChatButton.click();
-                    setTimeout(() => {
-                        const chatArea = document.querySelector('[data-element-id="chat-messages"]');
-                        if (chatArea) {
-                            chatArea.innerHTML = '';
-                            chatArea.appendChild(content);
-                        } else {
-                            alert('Could not find chat area');
-                        }
-                    }, 100);
-                } else {
-                    alert('Could not find necessary elements');
-                }
-            }
+            // Show the overlay
+            overlay.classList.remove('hidden');
 
         } catch (error) {
             console.error('Error:', error);
