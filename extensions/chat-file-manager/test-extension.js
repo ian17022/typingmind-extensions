@@ -1,5 +1,4 @@
 (function() {
-    // Create button
     const fileManagerButton = document.createElement('button');
     fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
@@ -10,65 +9,93 @@
                 <path fill="currentColor" d="M13 9H18.5L13 3.5V9M6 2H14L20 8V20A2 2 0 0 1 18 22H6A2 2 0 0 1 4 20V4A2 2 0 0 1 6 2M6 4V20H18V11H11V4H6Z"/>
             </svg>
         </span>
-        <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Debug</span>
+        <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Sizes</span>
     `;
 
-    // Add click handler
     fileManagerButton.addEventListener('click', async function() {
-        console.log('Button clicked');
+        // Find the main element directly
+        const mainElement = document.querySelector('main');
+        if (!mainElement) {
+            alert('Could not find main element');
+            return;
+        }
+
+        // Create our content
+        const content = document.createElement('div');
+        content.className = 'p-4';
+        content.innerHTML = '<div class="text-lg mb-4">Loading chats...</div>';
         
-        // First, let's examine the page structure
-        console.log('Page structure:', {
-            nextElement: document.getElementById('__next'),
-            mainElements: document.getElementsByTagName('main'),
-            sideBar: document.querySelector('[data-element-id="side-bar"]'),
-            allDataElements: document.querySelectorAll('[data-element-id]')
-        });
+        // Clear main content and add our content
+        mainElement.innerHTML = '';
+        mainElement.appendChild(content);
 
-        // Then, let's look at IndexedDB
         try {
-            // List all IndexedDB databases
-            const databases = await window.indexedDB.databases();
-            console.log('Available databases:', databases);
-
-            // Open keyval-store
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
                 request.onsuccess = (event) => resolve(event.target.result);
             });
 
-            // Log database info
-            console.log('Database:', {
-                name: db.name,
-                version: db.version,
-                objectStoreNames: db.objectStoreNames
-            });
-
-            // Get all data from keyval store
             const transaction = db.transaction(['keyval'], 'readonly');
             const store = transaction.objectStore('keyval');
-            
-            // Get all records
             const allData = await new Promise((resolve, reject) => {
                 const request = store.getAll();
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => reject(request.error);
             });
 
-            // Log the first record (if exists) and total count
-            console.log('IndexedDB data:', {
-                totalRecords: allData.length,
-                sampleRecord: allData[0],
-                allRecords: allData
-            });
+            // Process chat data
+            const chats = allData.map(chat => ({
+                id: chat.id,
+                title: chat.title || chat.preview?.slice(0, 30) + '...' || 'Untitled Chat',
+                size: new Blob([JSON.stringify(chat)]).size,
+                messageCount: chat.messages?.length || 0,
+                model: chat.model || 'Unknown'
+            })).sort((a, b) => b.size - a.size);
 
-            // Create a simple alert with the count
-            alert(`Found ${allData.length} chats in IndexedDB. Check console for details.`);
+            // Format size function
+            function formatSize(bytes) {
+                const units = ['B', 'KB', 'MB'];
+                let size = bytes;
+                let unitIndex = 0;
+                while (size >= 1024 && unitIndex < units.length - 1) {
+                    size /= 1024;
+                    unitIndex++;
+                }
+                return `${size.toFixed(1)} ${units[unitIndex]}`;
+            }
+
+            // Update content
+            content.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-lg font-medium">Chat Sizes</div>
+                    <div class="text-sm opacity-70">Total: ${chats.length} chats</div>
+                </div>
+                <div class="space-y-2">
+                    ${chats.slice(0, 20).map((chat, index) => `
+                        <div class="bg-zinc-800 rounded p-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="font-medium">${chat.title}</div>
+                                    <div class="text-sm opacity-70">
+                                        Size: ${formatSize(chat.size)}
+                                        • Messages: ${chat.messageCount}
+                                        • Model: ${chat.model}
+                                    </div>
+                                </div>
+                                <div class="text-sm opacity-50">#${index + 1}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
 
         } catch (error) {
-            console.error('Error accessing IndexedDB:', error);
-            alert('Error accessing IndexedDB. Check console for details.');
+            content.innerHTML = `
+                <div class="text-red-500">
+                    Error loading chats: ${error.message}
+                </div>
+            `;
         }
     });
 
