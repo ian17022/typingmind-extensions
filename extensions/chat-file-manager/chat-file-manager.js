@@ -12,42 +12,10 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Top 20</span>
     `;
 
-    // Add click handler
     fileManagerButton.addEventListener('click', async function() {
-        // Find the chat container (this is where the chat UI normally appears)
-        const chatContainer = document.querySelector('#__next');
-        if (!chatContainer) {
-            console.error('Chat container not found');
-            return;
-        }
-
-        // Create our panel
-        const panel = document.createElement('div');
-        panel.className = 'p-4 bg-zinc-900 rounded-lg m-4';
-        panel.innerHTML = `
-            <div class="flex items-center gap-3">
-                <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Loading chats...</span>
-            </div>
-        `;
-
-        // Clear the chat container and add our panel
-        const mainArea = chatContainer.querySelector('main');
-        if (mainArea) {
-            mainArea.innerHTML = '';
-            mainArea.appendChild(panel);
-        } else {
-            chatContainer.innerHTML = '';
-            chatContainer.appendChild(panel);
-        }
-
         try {
             // Open IndexedDB
             const db = await new Promise((resolve, reject) => {
-                console.log('Opening IndexedDB...');
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
                 request.onsuccess = (event) => resolve(event.target.result);
@@ -55,7 +23,6 @@
 
             // Get all chats
             const chats = await new Promise((resolve, reject) => {
-                console.log('Fetching chats...');
                 const transaction = db.transaction(['keyval'], 'readonly');
                 const store = transaction.objectStore('keyval');
                 const chats = [];
@@ -68,21 +35,15 @@
                             const size = new Blob([JSON.stringify(chatData)]).size;
                             chats.push({
                                 id: cursor.key,
-                                title: chatData.title || 'Untitled Chat',
+                                title: chatData.chatTitle || 'Untitled Chat', // Changed from title to chatTitle
                                 size: size,
-                                messageCount: chatData.messages?.length || 0,
-                                lastMessage: chatData.messages?.[chatData.messages.length - 1]?.content?.slice(0, 50) || ''
+                                messageCount: chatData.messages?.length || 0
                             });
                         }
                         cursor.continue();
                     } else {
                         resolve(chats);
                     }
-                };
-
-                store.openCursor().onerror = (error) => {
-                    console.error('Error fetching chats:', error);
-                    reject(error);
                 };
             });
 
@@ -91,9 +52,11 @@
                 .sort((a, b) => b.size - a.size)
                 .slice(0, 20);
 
-            console.log(`Found ${chats.length} chats, showing top 20`);
+            // Create the content panel
+            const panel = document.createElement('div');
+            panel.className = 'p-4 bg-zinc-900 rounded-lg m-4';
 
-            // Format file size
+            // Format file size function
             function formatSize(bytes) {
                 const units = ['B', 'KB', 'MB', 'GB'];
                 let size = bytes;
@@ -111,9 +74,9 @@
                     <h2 class="text-xl">Top 20 Largest Chats</h2>
                     <span class="text-sm opacity-70">Total chats: ${chats.length}</span>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-2" id="chat-list">
                     ${top20Chats.map((chat, index) => `
-                        <div class="flex items-center justify-between p-3 bg-zinc-800 rounded-lg">
+                        <div class="flex items-center justify-between p-3 bg-zinc-800 rounded-lg" id="chat-item-${chat.id}">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm opacity-50">#${index + 1}</span>
@@ -122,15 +85,10 @@
                                 <div class="text-sm opacity-70 mt-1">
                                     ${formatSize(chat.size)} • ${chat.messageCount} messages
                                 </div>
-                                ${chat.lastMessage ? `
-                                    <div class="text-sm opacity-50 mt-1 truncate">
-                                        Last message: ${chat.lastMessage}...
-                                    </div>
-                                ` : ''}
                             </div>
                             <button 
                                 class="ml-4 px-3 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
-                                onclick="(async function(id) { 
+                                onclick="(async function() { 
                                     if(confirm('Delete this chat?')) {
                                         try {
                                             const request = indexedDB.open('keyval-store', 1);
@@ -138,8 +96,12 @@
                                                 const db = event.target.result;
                                                 const tx = db.transaction(['keyval'], 'readwrite');
                                                 const store = tx.objectStore('keyval');
-                                                store.delete(id).onsuccess = () => {
-                                                    this.closest('.flex').remove();
+                                                const deleteRequest = store.delete('${chat.id}');
+                                                deleteRequest.onsuccess = () => {
+                                                    const element = document.getElementById('chat-item-${chat.id}');
+                                                    if (element) {
+                                                        element.remove();
+                                                    }
                                                 };
                                             };
                                         } catch (error) {
@@ -147,7 +109,7 @@
                                             alert('Error deleting chat');
                                         }
                                     }
-                                }).call(this, '${chat.id}')"
+                                })()"
                             >
                                 Delete
                             </button>
@@ -156,18 +118,25 @@
                 </div>
             `;
 
+            // Find main content area and replace content
+            const mainContent = document.querySelector('main');
+            if (mainContent) {
+                mainContent.innerHTML = '';
+                mainContent.appendChild(panel);
+            } else {
+                const container = document.getElementById('__next');
+                if (container) {
+                    container.innerHTML = '';
+                    container.appendChild(panel);
+                }
+            }
+
         } catch (error) {
             console.error('Error:', error);
-            panel.innerHTML = `
-                <div class="text-red-500">
-                    <h2 class="text-xl mb-2">Error Loading Chats</h2>
-                    <pre class="text-sm opacity-70">${error.message}</pre>
-                </div>
-            `;
+            alert('Error loading chats. Check console for details.');
         }
     });
 
-    // Rest of the code remains the same...
     function insertFileManagerButton() {
         const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
         if (teamsButton && teamsButton.parentNode) {
