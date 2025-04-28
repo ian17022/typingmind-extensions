@@ -3,34 +3,76 @@
     fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
 
-    // Create the overlay with modal styling
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/75 z-[60] hidden flex items-center justify-center p-4';
+    overlay.className = 'fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center p-4 overflow-y-auto';
+    overlay.style.backdropFilter = 'blur(4px)';
     overlay.innerHTML = `
-        <div class="bg-zinc-900 rounded-lg w-full max-w-4xl relative">
-            <div class="sticky top-0 flex justify-between items-center p-4 border-b border-zinc-800">
-                <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
-                <button id="close-file-manager" class="hover:bg-zinc-800 p-2 rounded-lg transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
+        <div class="bg-zinc-900 rounded-lg w-full max-w-4xl relative my-8">
+            <div class="sticky top-0 flex justify-between items-center p-4 border-b border-zinc-800 bg-zinc-900 z-10">
+                <div class="flex items-center justify-between w-full">
+                    <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
+                    <button id="close-file-manager" class="hover:bg-zinc-800 p-2 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div id="file-manager-content" class="p-4 max-h-[70vh] overflow-y-auto">
+            <div id="file-manager-content" class="p-4 overflow-y-auto" style="max-height: calc(80vh - 100px);">
             </div>
         </div>
     `;
     document.body.appendChild(overlay);
 
-    // Add close handlers
+    const style = document.createElement('style');
+    style.textContent = `
+        body.overlay-open {
+            overflow: hidden;
+        }
+        .modal-open {
+            overflow: hidden;
+        }
+        .file-manager-overlay {
+            overflow-y: auto;
+            min-height: 100vh;
+            width: 100vw;
+            padding: 1rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+        .file-manager-modal {
+            background: #18181B;
+            border: 1px solid #27272A;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+        .file-manager-content {
+            overflow-y: auto;
+            padding: 1rem;
+        }
+    `;
+    document.head.appendChild(style);
+
     overlay.querySelector('#close-file-manager').addEventListener('click', () => {
         overlay.classList.add('hidden');
+        document.body.classList.remove('overlay-open');
     });
     
-    // Close on background click
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
             overlay.classList.add('hidden');
+            document.body.classList.remove('overlay-open');
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+            overlay.classList.add('hidden');
+            document.body.classList.remove('overlay-open');
         }
     });
 
@@ -45,6 +87,8 @@
 
     fileManagerButton.addEventListener('click', async function() {
         try {
+            document.body.classList.add('overlay-open');
+            
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
@@ -92,11 +136,10 @@
                 return `${size.toFixed(1)} ${units[unitIndex]}`;
             }
 
-            // Update the content
             const contentArea = overlay.querySelector('#file-manager-content');
             contentArea.innerHTML = `
                 <div class="space-y-4">
-                    <div class="text-sm text-zinc-400">
+                    <div class="text-sm text-zinc-400 sticky top-0 bg-zinc-900 pb-2">
                         Total chats: ${chats.length}
                     </div>
                     <div class="space-y-2">
@@ -117,7 +160,7 @@
                                     ` : ''}
                                 </div>
                                 <button 
-                                    class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2"
+                                    class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
                                     onclick="(async function() { 
                                         if(confirm('Delete this chat?')) {
                                             try {
@@ -153,7 +196,6 @@
                 </div>
             `;
 
-            // Show the overlay
             overlay.classList.remove('hidden');
 
         } catch (error) {
