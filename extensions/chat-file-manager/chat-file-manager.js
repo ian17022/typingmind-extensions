@@ -14,6 +14,15 @@
 
     fileManagerButton.addEventListener('click', async function() {
         try {
+            // Click the "New Chat" button to use TypingMind's routing
+            const newChatButton = document.querySelector('[data-element-id="new-chat-button"]');
+            if (newChatButton) {
+                newChatButton.click();
+            }
+
+            // Wait for the new chat page to load
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
@@ -115,30 +124,15 @@
                 </div>
             `;
 
-            const container = document.createElement('div');
-            container.className = 'flex-1 h-full overflow-hidden';
-            container.appendChild(panel);
-
-            const appContainer = document.querySelector('[data-element-id="app-container"]') || 
-                               document.getElementById('__next');
+            // Find the chat container and replace its content
+            const chatContainer = document.querySelector('[data-element-id="chat-container"]') || 
+                                document.querySelector('[data-element-id="chat-messages"]');
             
-            if (appContainer) {
-                const marker = document.createComment('file-manager-content');
-                const originalContent = appContainer.innerHTML;
-                appContainer.innerHTML = '';
-                appContainer.appendChild(marker);
-                appContainer.appendChild(container);
-
-                const backButton = document.createElement('button');
-                backButton.className = 'absolute top-4 left-4 px-3 py-1 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors';
-                backButton.innerHTML = '← Back';
-                backButton.onclick = () => {
-                    appContainer.innerHTML = originalContent;
-                };
-                container.insertBefore(backButton, container.firstChild);
+            if (chatContainer) {
+                chatContainer.innerHTML = '';
+                chatContainer.appendChild(panel);
             } else {
-                console.error('Could not find app container');
-                alert('Error: Could not find app container');
+                console.error('Could not find chat container');
             }
 
         } catch (error) {
