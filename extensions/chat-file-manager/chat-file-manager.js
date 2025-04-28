@@ -3,25 +3,35 @@
     fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
 
-    // Create the overlay once and reuse it
+    // Create the overlay with modal styling
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 hidden';
+    overlay.className = 'fixed inset-0 bg-black/75 z-[60] hidden flex items-center justify-center p-4';
     overlay.innerHTML = `
-        <div class="absolute inset-4 bg-zinc-900 rounded-lg overflow-auto">
-            <div class="sticky top-0 right-0 p-4 flex justify-end bg-zinc-900">
-                <button id="close-file-manager" class="px-3 py-1 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors">
-                    Close
+        <div class="bg-zinc-900 rounded-lg w-full max-w-4xl relative">
+            <div class="sticky top-0 flex justify-between items-center p-4 border-b border-zinc-800">
+                <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
+                <button id="close-file-manager" class="hover:bg-zinc-800 p-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
                 </button>
             </div>
-            <div id="file-manager-content" class="p-4">
+            <div id="file-manager-content" class="p-4 max-h-[70vh] overflow-y-auto">
             </div>
         </div>
     `;
     document.body.appendChild(overlay);
 
-    // Add close handler
+    // Add close handlers
     overlay.querySelector('#close-file-manager').addEventListener('click', () => {
         overlay.classList.add('hidden');
+    });
+    
+    // Close on background click
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.add('hidden');
+        }
     });
 
     fileManagerButton.innerHTML = `
@@ -85,30 +95,29 @@
             // Update the content
             const contentArea = overlay.querySelector('#file-manager-content');
             contentArea.innerHTML = `
-                <div class="max-w-4xl mx-auto">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold">Top 20 Largest Chats</h2>
-                        <span class="text-sm opacity-70">Total chats: ${chats.length}</span>
+                <div class="space-y-4">
+                    <div class="text-sm text-zinc-400">
+                        Total chats: ${chats.length}
                     </div>
-                    <div class="space-y-2" id="chat-list">
+                    <div class="space-y-2">
                         ${top20Chats.map((chat, index) => `
-                            <div class="flex items-center justify-between p-3 bg-zinc-800 rounded-lg" id="chat-item-${chat.id}">
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm opacity-50">#${index + 1}</span>
+                            <div class="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors" id="chat-item-${chat.id}">
+                                <div class="flex-1 min-w-0 mr-4">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-sm bg-zinc-700 px-2 py-0.5 rounded-full">#${index + 1}</span>
                                         <span class="font-medium truncate">${chat.title}</span>
                                     </div>
-                                    <div class="text-sm opacity-70 mt-1">
+                                    <div class="text-sm text-zinc-400">
                                         ${formatSize(chat.size)} • ${chat.messageCount} messages
                                     </div>
                                     ${chat.preview ? `
-                                        <div class="text-sm opacity-50 mt-1 truncate">
+                                        <div class="text-sm text-zinc-500 mt-1 truncate">
                                             ${chat.preview}
                                         </div>
                                     ` : ''}
                                 </div>
                                 <button 
-                                    class="ml-4 px-3 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors"
+                                    class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2"
                                     onclick="(async function() { 
                                         if(confirm('Delete this chat?')) {
                                             try {
@@ -120,7 +129,10 @@
                                                     const deleteRequest = store.delete('${chat.id}');
                                                     deleteRequest.onsuccess = () => {
                                                         const element = document.getElementById('chat-item-${chat.id}');
-                                                        if (element) element.remove();
+                                                        if (element) {
+                                                            element.style.opacity = '0';
+                                                            setTimeout(() => element.remove(), 300);
+                                                        }
                                                     };
                                                 };
                                             } catch (error) {
@@ -130,6 +142,9 @@
                                         }
                                     })()"
                                 >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
                                     Delete
                                 </button>
                             </div>
