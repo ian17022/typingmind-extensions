@@ -1,9 +1,8 @@
 (function() {
-    // -- Nice Folder SVG icon --
     const niceFilesIcon = `
-        <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M7 7V3a2 2 0 012-2h6a2 2 0 012 2v4m2 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9a2 2 0 012-2h10a2 2 0 012 2z"/>
-        </svg>
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6.75 21h10.5a2.25 2.25 0 0 0 2.25-2.25V7.31a2.25 2.25 0 0 0-.659-1.591l-3.06-3.06A2.25 2.25 0 0 0 14.19 2.25H6.75z" />
+    </svg>
     `;
 
     const filesButton = document.createElement('button');
@@ -23,7 +22,7 @@
       <div class="bg-zinc-900 rounded-lg w-full max-w-4xl relative my-8">
         <div class="sticky top-0 flex justify-between items-center p-4 border-b border-zinc-800 bg-zinc-900 z-10">
           <div class="flex items-center justify-between w-full">
-            <h2 class="text-xl font-bold">Chats with Files</h2>
+            <h2 class="text-xl font-bold">Debug: Chats with Files</h2>
             <button id="close-files-manager" class="hover:bg-zinc-800 p-2 rounded-lg transition-colors">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -56,13 +55,10 @@
 
     filesButton.addEventListener('click', async function() {
         document.body.classList.add('overlay-open');
-
-        // Info for user
         const contentArea = filesOverlay.querySelector('#files-manager-content');
-        contentArea.innerHTML = '<div class="text-zinc-400 text-sm">Scanning chats... (see console log for details)</div>';
+        contentArea.innerHTML = '<div class="text-zinc-400 text-sm">Loading chats from storage ...</div>';
 
         try {
-            // Open indexedDB and get chats
             const db = await new Promise((resolve, reject) => {
                 const request = indexedDB.open('keyval-store', 1);
                 request.onerror = () => reject(request.error);
@@ -84,23 +80,39 @@
                 };
             });
 
-            // LOG all messages so you can check how files & images are stored
+            let html = `<div class="text-lg font-bold text-zinc-100">Loaded ${chats.length} chats</div>`;
+
+            if (chats.length === 0) {
+                html += `<div class="text-red-400 mt-4">No chats found. Storage may be empty!</div>`;
+            }
+
+            chats.slice(0, 3).forEach((chat, i) => {
+                const title = chat.chatData.chatTitle || chat.chatData.preview || 'Untitled Chat';
+                const messages = chat.chatData.messages || [];
+                html += `<div class="mt-4 border border-zinc-700 rounded p-2">
+                    <div class="font-semibold text-zinc-200">Chat #${i + 1}: <span class="text-zinc-300">${title}</span> (<span class="text-xs text-zinc-400">ID: ${chat.id}</span>)</div>
+                    <div class="text-xs text-zinc-400">Messages: ${messages.length}</div>
+                    ${
+                        messages.length > 0
+                        ? `<pre class="bg-zinc-800 rounded p-2 mt-2 overflow-x-auto text-xs text-zinc-200">${JSON.stringify(messages[0], null, 2)}</pre>
+                        <div class="text-xs text-zinc-400 mb-2">[First message object - copy this and send to your assistant!]</div>`
+                        : '<div class="text-red-400">No messages in this chat.</div>'
+                    }
+                </div>`;
+            });
+
+            contentArea.innerHTML = html;
+
+            console.log(`[Debug] Loaded ${chats.length} chats.`);
             chats.forEach(chat => {
                 const title = chat.chatData.chatTitle || chat.chatData.preview || 'Untitled Chat';
                 const messages = chat.chatData.messages || [];
-                console.groupCollapsed(`Chat: ${title} (${chat.id}), messages: ${messages.length}`);
+                console.groupCollapsed(`Chat "${title}" (ID: ${chat.id}) - ${messages.length} messages`);
                 messages.forEach((msg, idx) => {
-                    console.log(`Message #${idx}`, msg);
+                    console.log(`Message #${idx}:`, msg);
                 });
                 console.groupEnd();
             });
-
-            contentArea.innerHTML = `
-                <div class="text-green-400 p-4">
-                    All chat messages logged to console.<br>
-                    <span class="text-zinc-400">Expand them to find how images/PDFs are represented. <br>Paste a sample here for further help!</span>
-                </div>
-            `;
 
         } catch (err) {
             contentArea.innerHTML = '<div class="text-red-400 p-4">Error loading. See console.</div>';
