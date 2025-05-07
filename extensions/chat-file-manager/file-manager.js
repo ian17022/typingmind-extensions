@@ -1,171 +1,93 @@
-fileManagerButton.addEventListener('click', async function() {
-    try {
-        document.body.classList.add('overlay-open');
-        
-        const db = await new Promise((resolve, reject) => {
-            const request = indexedDB.open('keyval-store', 1);
-            request.onerror = () => reject(request.error);
-            request.onsuccess = (event) => resolve(event.target.result);
-        });
+(function() {
+    const fileManagerButton = document.createElement('button');
+    fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
+    fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
 
-        const chats = await new Promise((resolve, reject) => {
-            const transaction = db.transaction(['keyval'], 'readonly');
-            const store = transaction.objectStore('keyval');
-            const chats = [];
+    fileManagerButton.innerHTML = `
+        <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
+            <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 17.5L6.5 12H10V8H14V12H17.5L12 17.5M20 6H12L10 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6Z"/>
+            </svg>
+        </span>
+        <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Files</span>
+    `;
 
-            store.openCursor().onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    const chatData = cursor.value;
-                    // Log the first chat data to understand the structure
-                    if (chats.length === 0) {
-                        console.log('Sample chat data structure:', {
-                            fullData: chatData,
-                            id: cursor.key,
-                            title: chatData.chatTitle,
-                            createdAt: chatData.createdAt,
-                            updatedAt: chatData.updatedAt,
-                            messageCount: chatData.messages?.length,
-                            sampleMessage: chatData.messages?.[0],
+    fileManagerButton.addEventListener('click', async function() {
+        console.log('Button clicked');
+        try {
+            // Open IndexedDB
+            const db = await new Promise((resolve, reject) => {
+                console.log('Opening IndexedDB...');
+                const request = indexedDB.open('keyval-store', 1);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = (event) => resolve(event.target.result);
+            });
+
+            // Get all data
+            const allData = await new Promise((resolve, reject) => {
+                console.log('Reading data...');
+                const transaction = db.transaction(['keyval'], 'readonly');
+                const store = transaction.objectStore('keyval');
+                const request = store.getAll();
+
+                request.onsuccess = () => {
+                    console.log('Data retrieved:', request.result);
+                    resolve(request.result);
+                };
+                request.onerror = () => reject(request.error);
+            });
+
+            // Log the data structure
+            console.log('First chat structure:', allData[0]);
+            console.log('Total chats:', allData.length);
+            
+            // Log all messages that might contain files
+            allData.forEach(chat => {
+                if (chat && chat.messages) {
+                    chat.messages.forEach((msg, index) => {
+                        console.log('Message structure:', {
+                            messageIndex: index,
+                            type: msg.type,
+                            content: msg.content,
+                            full: msg
                         });
-                    }
-
-                    if (chatData && chatData.messages) {
-                        // Log every message with attachments for debugging
-                        const filesInChat = chatData.messages.filter(msg => {
-                            const hasAttachment = msg.attachments || 
-                                               msg.type === 'image' || 
-                                               msg.type === 'pdf' ||
-                                               (msg.content && (
-                                                   msg.content.includes('.pdf') || 
-                                                   msg.content.includes('.png') || 
-                                                   msg.content.includes('.jpg') ||
-                                                   msg.content.includes('.jpeg')
-                                               ));
-                            
-                            if (hasAttachment) {
-                                console.log('Found attachment in chat:', {
-                                    chatId: cursor.key,
-                                    messageType: msg.type,
-                                    content: msg.content,
-                                    attachments: msg.attachments,
-                                    fullMessage: msg
-                                });
-                            }
-                            return hasAttachment;
-                        });
-
-                        if (filesInChat.length > 0) {
-                            chats.push({
-                                id: cursor.key,
-                                title: chatData.chatTitle || 'Untitled Chat',
-                                files: filesInChat,
-                                timestamp: chatData.updatedAt || chatData.createdAt || new Date().toISOString(),
-                                messageCount: chatData.messages.length
-                            });
-                        }
-                    }
-                    cursor.continue();
-                } else {
-                    // Sort chats by timestamp (most recent first)
-                    chats.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                    resolve(chats);
+                    });
                 }
-            };
-        });
+            });
 
-        const contentArea = overlay.querySelector('#file-manager-content');
-        contentArea.innerHTML = `
-            <div class="space-y-4">
-                <div class="text-sm text-zinc-400 sticky top-0 bg-zinc-900 pb-2">
-                    Chats with files: ${chats.length}
-                </div>
-                <div class="space-y-4">
-                    ${chats.map((chat, chatIndex) => `
-                        <div class="bg-zinc-800/50 rounded-lg p-4" id="chat-${chat.id}">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="font-medium">${chat.title}</div>
-                                <div class="text-sm text-zinc-400">
-                                    ${new Date(chat.timestamp).toLocaleString()}
-                                </div>
-                            </div>
-                            <div class="text-xs text-zinc-500 mb-2">
-                                Chat ID: ${chat.id} • Messages: ${chat.messageCount}
-                            </div>
-                            <div class="space-y-2">
-                                ${chat.files.map((file, fileIndex) => `
-                                    <div class="flex items-center justify-between bg-zinc-900/50 p-3 rounded" id="file-${chatIndex}-${fileIndex}">
-                                        <div class="flex items-center gap-3 flex-1 min-w-0">
-                                            <span class="text-2xl flex-shrink-0">
-                                                ${file.type === 'image' || file.content?.match(/\.(png|jpg|jpeg)/) ? '🖼️' : '📄'}
-                                            </span>
-                                            <div class="overflow-hidden">
-                                                <div class="text-sm truncate">
-                                                    ${file.content?.split('/').pop() || `File ${fileIndex + 1}`}
-                                                </div>
-                                                <div class="text-xs text-zinc-500 truncate">
-                                                    Type: ${file.type || 'unknown'} • ID: ${file.id || 'N/A'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap ml-2 flex-shrink-0"
-                                            onclick="(async function() { 
-                                                if(confirm('Delete this file?')) {
-                                                    try {
-                                                        const request = indexedDB.open('keyval-store', 1);
-                                                        request.onsuccess = (event) => {
-                                                            const db = event.target.result;
-                                                            const tx = db.transaction(['keyval'], 'readwrite');
-                                                            const store = tx.objectStore('keyval');
-                                                            
-                                                            const getRequest = store.get('${chat.id}');
-                                                            getRequest.onsuccess = () => {
-                                                                const chatData = getRequest.result;
-                                                                chatData.messages = chatData.messages.filter((_, index) => 
-                                                                    index !== ${chat.files.indexOf(file)}
-                                                                );
-                                                                store.put(chatData);
-                                                                
-                                                                const element = document.getElementById('file-${chatIndex}-${fileIndex}');
-                                                                if (element) {
-                                                                    element.style.opacity = '0';
-                                                                    setTimeout(() => {
-                                                                        element.remove();
-                                                                        const filesLeft = document.querySelectorAll('#chat-${chat.id} [id^="file-"]').length;
-                                                                        if (filesLeft === 1) {
-                                                                            const chatElement = document.getElementById('chat-${chat.id}');
-                                                                            if (chatElement) chatElement.remove();
-                                                                        }
-                                                                    }, 300);
-                                                                }
-                                                            };
-                                                        };
-                                                    } catch (error) {
-                                                        console.error('Error deleting file:', error);
-                                                        alert('Error deleting file');
-                                                    }
-                                                }
-                                            })()"
-                                        >
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                            Delete
-                                        </button>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+        } catch (error) {
+            console.error('Error accessing IndexedDB:', error);
+        }
+    });
 
-        overlay.classList.remove('hidden');
-
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error loading files. Check console for details.');
+    function insertFileManagerButton() {
+        const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
+        if (teamsButton && teamsButton.parentNode) {
+            teamsButton.parentNode.insertBefore(fileManagerButton, teamsButton.nextSibling);
+            return true;
+        }
+        return false;
     }
-});
+
+    const observer = new MutationObserver((mutations) => {
+        if (insertFileManagerButton()) {
+            observer.disconnect();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    insertFileManagerButton();
+
+    const maxAttempts = 10;
+    let attempts = 0;
+    const interval = setInterval(() => {
+        if (insertFileManagerButton() || attempts >= maxAttempts) {
+            clearInterval(interval);
+        }
+        attempts++;
+    }, 1000);
+})();
