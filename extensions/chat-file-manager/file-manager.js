@@ -1,18 +1,21 @@
 (function() {
-    // ---- UI: Create "Files" button (styled similarly) ----
+    // -- Nice Folder SVG icon --
+    const niceFilesIcon = `
+        <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 7V3a2 2 0 012-2h6a2 2 0 012 2v4m2 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9a2 2 0 012-2h10a2 2 0 012 2z"/>
+        </svg>
+    `;
+
     const filesButton = document.createElement('button');
     filesButton.setAttribute('data-element-id', 'files-manager-button');
     filesButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
     filesButton.innerHTML = `
         <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
-            <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm2 8h8v2H8v-2zm0 4h8v2H8v-2z"/>
-            </svg>
+            ${niceFilesIcon}
         </span>
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Files</span>
     `;
 
-    // ---- UI: Popup Modal for Files ----
     const filesOverlay = document.createElement('div');
     filesOverlay.className = 'fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center p-4 overflow-y-auto';
     filesOverlay.style.backdropFilter = 'blur(4px)';
@@ -29,14 +32,10 @@
           </div>
         </div>
         <div id="files-manager-content" class="p-4 overflow-y-auto" style="max-height: calc(80vh - 100px);">
-          <!-- Content fills here -->
         </div>
       </div>
     `;
     document.body.appendChild(filesOverlay);
-
-    // ---- Style for Modal (reuse your CSS) ----
-    // (No duplicate needed if you already have the style from your first modal)
 
     filesOverlay.querySelector('#close-files-manager').addEventListener('click', () => {
         filesOverlay.classList.add('hidden');
@@ -55,13 +54,12 @@
         }
     });
 
-    // ---- Main Logic for Files Button ----
     filesButton.addEventListener('click', async function() {
         document.body.classList.add('overlay-open');
 
-        // Clear any existing content
+        // Info for user
         const contentArea = filesOverlay.querySelector('#files-manager-content');
-        contentArea.innerHTML = '<div class="text-zinc-400 text-sm">Scanning chats for images or PDFs...</div>';
+        contentArea.innerHTML = '<div class="text-zinc-400 text-sm">Scanning chats... (see console log for details)</div>';
 
         try {
             // Open indexedDB and get chats
@@ -86,65 +84,21 @@
                 };
             });
 
-            // Now, find chats with file attachments (images/PDFs)
-            let filesInChats = [];
+            // LOG all messages so you can check how files & images are stored
             chats.forEach(chat => {
+                const title = chat.chatData.chatTitle || chat.chatData.preview || 'Untitled Chat';
                 const messages = chat.chatData.messages || [];
+                console.groupCollapsed(`Chat: ${title} (${chat.id}), messages: ${messages.length}`);
                 messages.forEach((msg, idx) => {
-                    // Look for a field (often: msg.files, msg.attachments, msg.images, etc.)
-                    let files = [];
-                    if (msg.files) files = files.concat(msg.files);
-                    if (msg.attachments) files = files.concat(msg.attachments);
-                    if (msg.image) files.push(msg.image);
-                    if (msg.images) files = files.concat(msg.images);
-                    // Cleanup (sometimes "images" may be a string; make it array)
-                    if (typeof files === 'string') files = [files];
-
-                    // Now, filter
-                    files.forEach(file => {
-                        // Check for image or PDF
-                        let lower = '';
-                        if (typeof file === 'string') lower = file.toLowerCase();
-                        else if (file.name) lower = file.name.toLowerCase();
-                        else if (file.url) lower = file.url.toLowerCase();
-                        if (lower.match(/\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg)$/) || lower.endsWith('.pdf') || lower.startsWith('data:image') || lower.startsWith('data:application/pdf')) {
-                            filesInChats.push({
-                                chatId: chat.id,
-                                chatTitle: chat.chatData.chatTitle || chat.chatData.preview || 'Untitled Chat',
-                                messageIdx: idx,
-                                message: msg,
-                                file: file
-                            });
-                        }
-                    });
+                    console.log(`Message #${idx}`, msg);
                 });
+                console.groupEnd();
             });
 
-            // LOG INFO FOR DEV PURPOSES
-            console.log("Detected chats/files to display:");
-            filesInChats.forEach(entry => {
-                console.log({
-                    chatId: entry.chatId,
-                    chatTitle: entry.chatTitle,
-                    messageIdx: entry.messageIdx,
-                    file: entry.file,
-                    message: entry.message, // includes everything for now
-                });
-            });
-
-            // Show summary for user
             contentArea.innerHTML = `
-                <div class="space-y-2">
-                    <div class="text-sm text-zinc-400">Found ${filesInChats.length} files in ${[...new Set(filesInChats.map(e=>e.chatId))].length} chats. <br>(See console for details)</div>
-                    ${
-                        filesInChats.slice(0,5).map(entry => `
-                            <div class="bg-zinc-800/50 p-3 rounded-lg text-zinc-300 text-xs">
-                                Chat: <strong>${entry.chatTitle}</strong> <br>
-                                File Info: <code class="bg-zinc-900 px-2 py-1 rounded">${typeof entry.file === 'string' ? entry.file : JSON.stringify(entry.file)}</code> <br>
-                                <span class="text-zinc-500">More details in console &rarr;</span>
-                            </div>
-                        `).join('\n')
-                    }
+                <div class="text-green-400 p-4">
+                    All chat messages logged to console.<br>
+                    <span class="text-zinc-400">Expand them to find how images/PDFs are represented. <br>Paste a sample here for further help!</span>
                 </div>
             `;
 
@@ -156,17 +110,14 @@
         filesOverlay.classList.remove('hidden');
     });
 
-    // ---- Insert Files Button in Sidebar ----
     function insertFilesButton() {
         const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
         if (teamsButton && teamsButton.parentNode) {
-            // Insert AFTER teamsButton
             teamsButton.parentNode.insertBefore(filesButton, teamsButton.nextSibling);
             return true;
         }
         return false;
     }
-    // Observer method to wait for sidebar mount
     const observer = new MutationObserver((mutations) => {
         if (insertFilesButton()) {
             observer.disconnect();
@@ -177,7 +128,6 @@
         subtree: true
     });
     insertFilesButton();
-    // fallback interval
     const maxAttempts = 10;
     let attempts = 0;
     const interval = setInterval(() => {
