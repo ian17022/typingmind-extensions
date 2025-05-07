@@ -1,7 +1,6 @@
 (function() {
-    // Create button
     const fileManagerButton = document.createElement('button');
-    fileManagerButton.setAttribute('data-element-id', 'files-button');  // Changed ID to be unique
+    fileManagerButton.setAttribute('data-element-id', 'files-button');
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
     fileManagerButton.innerHTML = `
         <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
@@ -12,56 +11,104 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Files</span>
     `;
 
-    // Add a simple click handler
-    fileManagerButton.addEventListener('click', () => {
+    fileManagerButton.addEventListener('click', async () => {
         console.log('Files button clicked');
-        alert('Files button clicked');
+        
+        try {
+            // Open IndexedDB
+            const db = await new Promise((resolve, reject) => {
+                const request = indexedDB.open('keyval-store', 1);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = (event) => resolve(event.target.result);
+            });
+
+            // Get transaction and store
+            const transaction = db.transaction(['keyval'], 'readonly');
+            const store = transaction.objectStore('keyval');
+
+            // Get all chats
+            const request = store.getAll();
+            request.onsuccess = () => {
+                const chats = request.result;
+                console.log('Total chats found:', chats.length);
+
+                // Log first chat structure
+                if (chats.length > 0) {
+                    console.log('Sample chat structure:', {
+                        id: chats[0].id,
+                        chatTitle: chats[0].chatTitle,
+                        messageCount: chats[0].messages?.length,
+                        allKeys: Object.keys(chats[0])
+                    });
+
+                    // Log first message structure
+                    if (chats[0].messages?.length > 0) {
+                        console.log('Sample message structure:', {
+                            firstMessage: chats[0].messages[0],
+                            allMessageKeys: Object.keys(chats[0].messages[0])
+                        });
+                    }
+                }
+
+                // Look for potential file-related content
+                chats.forEach((chat, chatIndex) => {
+                    console.log(`\nAnalyzing chat ${chatIndex + 1}:`, {
+                        id: chat.id,
+                        title: chat.chatTitle,
+                        messageCount: chat.messages?.length
+                    });
+
+                    chat.messages?.forEach((msg, msgIndex) => {
+                        // Log any message that might contain file-related content
+                        if (
+                            msg.type === 'image' || 
+                            msg.type === 'pdf' ||
+                            msg.content?.includes('.pdf') ||
+                            msg.content?.includes('.png') ||
+                            msg.content?.includes('.jpg') ||
+                            msg.content?.includes('.jpeg') ||
+                            msg.attachments ||
+                            msg.files ||
+                            msg.file
+                        ) {
+                            console.log(`Found potential file in message ${msgIndex}:`, {
+                                type: msg.type,
+                                content: msg.content,
+                                attachments: msg.attachments,
+                                files: msg.files,
+                                file: msg.file,
+                                allMessageKeys: Object.keys(msg),
+                                fullMessage: msg
+                            });
+                        }
+                    });
+                });
+            };
+
+            request.onerror = () => {
+                console.error('Error accessing IndexedDB:', request.error);
+            };
+
+        } catch (error) {
+            console.error('Error:', error);
+        }
     });
 
-    // Function to insert button
     function insertButton() {
-        console.log('Attempting to insert button...');
         const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
-        console.log('Teams button found:', teamsButton);
-        
         if (teamsButton && teamsButton.parentNode) {
-            console.log('Inserting button after teams button');
             teamsButton.parentNode.insertBefore(fileManagerButton, teamsButton.nextSibling);
             return true;
         }
         return false;
     }
 
-    // Try immediate insertion
-    console.log('Initial button insertion attempt');
-    insertButton();
-
-    // Set up observer
-    console.log('Setting up observer');
     const observer = new MutationObserver((mutations) => {
-        console.log('DOM mutation detected');
         if (insertButton()) {
-            console.log('Button inserted successfully, disconnecting observer');
             observer.disconnect();
         }
     });
 
-    // Start observing with logging
     observer.observe(document.body, {
         childList: true,
-        subtree: true
-    });
-    console.log('Observer started');
-
-    // Periodic attempts
-    let attempts = 0;
-    const maxAttempts = 20; // Increased attempts
-    const interval = setInterval(() => {
-        console.log(`Attempt ${attempts + 1} of ${maxAttempts}`);
-        if (insertButton() || attempts >= maxAttempts) {
-            console.log('Clearing interval');
-            clearInterval(interval);
-        }
-        attempts++;
-    }, 1000);
-})();
+        subt
