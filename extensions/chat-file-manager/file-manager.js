@@ -1,8 +1,8 @@
 (function() {
+    // Create button
     const fileManagerButton = document.createElement('button');
-    fileManagerButton.setAttribute('data-element-id', 'file-manager-button');
+    fileManagerButton.setAttribute('data-element-id', 'files-button');  // Changed ID to be unique
     fileManagerButton.className = 'cursor-default group flex items-center justify-center p-1 text-sm font-medium flex-col group focus:outline-0 focus:text-white text-white/70';
-
     fileManagerButton.innerHTML = `
         <span class="block group-hover:bg-white/30 w-[35px] h-[35px] transition-all rounded-lg flex items-center justify-center group-hover:text-white/90">
             <svg class="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
@@ -12,80 +12,54 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Files</span>
     `;
 
-    fileManagerButton.addEventListener('click', async function() {
-        console.log('Button clicked');
-        try {
-            // Open IndexedDB
-            const db = await new Promise((resolve, reject) => {
-                console.log('Opening IndexedDB...');
-                const request = indexedDB.open('keyval-store', 1);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = (event) => resolve(event.target.result);
-            });
-
-            // Get all data
-            const allData = await new Promise((resolve, reject) => {
-                console.log('Reading data...');
-                const transaction = db.transaction(['keyval'], 'readonly');
-                const store = transaction.objectStore('keyval');
-                const request = store.getAll();
-
-                request.onsuccess = () => {
-                    console.log('Data retrieved:', request.result);
-                    resolve(request.result);
-                };
-                request.onerror = () => reject(request.error);
-            });
-
-            // Log the data structure
-            console.log('First chat structure:', allData[0]);
-            console.log('Total chats:', allData.length);
-            
-            // Log all messages that might contain files
-            allData.forEach(chat => {
-                if (chat && chat.messages) {
-                    chat.messages.forEach((msg, index) => {
-                        console.log('Message structure:', {
-                            messageIndex: index,
-                            type: msg.type,
-                            content: msg.content,
-                            full: msg
-                        });
-                    });
-                }
-            });
-
-        } catch (error) {
-            console.error('Error accessing IndexedDB:', error);
-        }
+    // Add a simple click handler
+    fileManagerButton.addEventListener('click', () => {
+        console.log('Files button clicked');
+        alert('Files button clicked');
     });
 
-    function insertFileManagerButton() {
+    // Function to insert button
+    function insertButton() {
+        console.log('Attempting to insert button...');
         const teamsButton = document.querySelector('[data-element-id="workspace-tab-teams"]');
+        console.log('Teams button found:', teamsButton);
+        
         if (teamsButton && teamsButton.parentNode) {
+            console.log('Inserting button after teams button');
             teamsButton.parentNode.insertBefore(fileManagerButton, teamsButton.nextSibling);
             return true;
         }
         return false;
     }
 
+    // Try immediate insertion
+    console.log('Initial button insertion attempt');
+    insertButton();
+
+    // Set up observer
+    console.log('Setting up observer');
     const observer = new MutationObserver((mutations) => {
-        if (insertFileManagerButton()) {
+        console.log('DOM mutation detected');
+        if (insertButton()) {
+            console.log('Button inserted successfully, disconnecting observer');
             observer.disconnect();
         }
     });
 
+    // Start observing with logging
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
+    console.log('Observer started');
 
-    insertFileManagerButton();
-
-    const maxAttempts = 10;
+    // Periodic attempts
     let attempts = 0;
+    const maxAttempts = 20; // Increased attempts
     const interval = setInterval(() => {
-        if (insertFileManagerButton() || attempts >= maxAttempts) {
+        console.log(`Attempt ${attempts + 1} of ${maxAttempts}`);
+        if (insertButton() || attempts >= maxAttempts) {
+            console.log('Clearing interval');
             clearInterval(interval);
         }
         attempts++;
