@@ -95,6 +95,16 @@
         downloadAnchorNode.remove();
     }
 
+    // Add click handler for export buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.export-metadata-btn')) {
+            const btn = e.target.closest('.export-metadata-btn');
+            const data = JSON.parse(btn.dataset.metadata);
+            const id = btn.dataset.id;
+            downloadObjectAsJson(data, `chat-metadata-${id}`);
+        }
+    });
+
     fileManagerButton.addEventListener('click', async function() {
         try {
             document.body.classList.add('overlay-open');
@@ -157,7 +167,7 @@
                             preview: chatData.preview,
                             isPDF,
                             isSystemList,
-                            rawData: chatData  // Include raw data for export
+                            rawData: chatData
                         });
                     }
                     cursor.continue();
@@ -206,8 +216,9 @@
                                 </div>
                                 <div class="flex gap-2">
                                     <button 
-                                        class="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
-                                        onclick="window.downloadChatMetadata('${chat.id}', ${JSON.stringify(chat.rawData)})"
+                                        class="export-metadata-btn px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
+                                        data-id="${chat.id}"
+                                        data-metadata="${encodeURIComponent(JSON.stringify(chat.rawData))}"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -253,19 +264,6 @@
                     </div>
                 </div>
             `;
-
-            // Add the download function to window scope
-            window.downloadChatMetadata = function(id, data) {
-                const fileName = 'chat-metadata-' + id;
-                const dataStr = 'data:text/json;charset=utf-8,' + 
-                    encodeURIComponent(JSON.stringify(data, null, 2));
-                const a = document.createElement('a');
-                a.href = dataStr;
-                a.download = fileName + '.json';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            };
 
             overlay.classList.remove('hidden');
 
