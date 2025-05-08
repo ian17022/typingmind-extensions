@@ -105,13 +105,30 @@
                     if (cursor) {
                         const chatData = cursor.value;
                         if (chatData && typeof chatData === 'object') {
+                            // compute size, title, messageCount, preview
                             const size = new Blob([JSON.stringify(chatData)]).size;
+                            const title = chatData.chatTitle 
+                                           || chatData.preview?.slice(0, 50) 
+                                           || 'Untitled Chat';
+                            const messageCount = chatData.messages?.length || 0;
+                            const preview = chatData.preview;
+
+                            // Detailed console logging for Untitled Chats only
+                            if (title === 'Untitled Chat') {
+                                console.groupCollapsed(`Untitled Chat Detected (ID: ${cursor.key})`);
+                                console.log('Raw chatData:', chatData);
+                                console.log('Computed size (bytes):', size);
+                                console.log('Message count:', messageCount);
+                                console.log('Preview content:', preview);
+                                console.groupEnd();
+                            }
+
                             chats.push({
                                 id: cursor.key,
-                                title: chatData.chatTitle || chatData.preview?.slice(0, 50) || 'Untitled Chat',
+                                title: title,
                                 size: size,
-                                messageCount: chatData.messages?.length || 0,
-                                preview: chatData.preview
+                                messageCount: messageCount,
+                                preview: preview
                             });
                         }
                         cursor.continue();
