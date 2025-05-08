@@ -85,7 +85,6 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Top 20</span>
     `;
 
-    // Store metadata globally
     window.chatMetadata = new Map();
 
     document.addEventListener('click', function(e) {
@@ -130,12 +129,26 @@
                     const chatData = cursor.value;
                     if (chatData && typeof chatData === 'object') {
                         const size = new Blob([JSON.stringify(chatData)]).size;
-                        let title, isPDF = false, isSystemList = false;
+                        let title, isPDF = false, isSystemList = false, isClipboard = false;
                         
                         if (chatData.cacheGroup === 'attachment_parser') {
-                            isPDF = true;
-                            const match = chatData.value?.base64?.match(/<FILE_ATTACHMENT\s+name="([^"]+)">/);
-                            title = match ? match[1] : 'Untitled.pdf';
+                            if (chatData.value?.text) {
+                                const match = chatData.value.text.match(/<FILE_ATTACHMENT\s+name="([^"]+)">/);
+                                if (match) {
+                                    const fileName = match[1];
+                                    if (fileName === 'clipboard.txt') {
+                                        title = 'Clipboard Text';
+                                        isClipboard = true;
+                                    } else {
+                                        isPDF = fileName.toLowerCase().endsWith('.pdf');
+                                        title = fileName;
+                                    }
+                                } else {
+                                    title = 'Untitled Attachment';
+                                }
+                            } else {
+                                title = 'Untitled Attachment';
+                            }
                         }
                         else if (cursor.key.startsWith('TM_use')) {
                             isSystemList = true;
@@ -159,7 +172,6 @@
                                 || 'Untitled Chat';
                         }
 
-                        // Store metadata globally
                         window.chatMetadata.set(cursor.key, chatData);
 
                         chats.push({
@@ -169,7 +181,8 @@
                             messageCount: chatData.messages?.length || 0,
                             preview: chatData.preview,
                             isPDF,
-                            isSystemList
+                            isSystemList,
+                            isClipboard
                         });
                     }
                     cursor.continue();
@@ -204,7 +217,7 @@
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="text-sm bg-zinc-700 px-2 py-0.5 rounded-full">#${index + 1}</span>
                                         <span class="font-medium truncate">
-                                            ${chat.title}${chat.isPDF ? ' (PDF)' : ''}${chat.isSystemList ? ' (System)' : ''}
+                                            ${chat.title}${chat.isPDF ? ' (PDF)' : ''}${chat.isClipboard ? ' (Text)' : ''}${chat.isSystemList ? ' (System)' : ''}
                                         </span>
                                     </div>
                                     <div class="text-sm text-zinc-400">
