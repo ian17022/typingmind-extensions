@@ -102,39 +102,41 @@
 
                 store.openCursor().onsuccess = (event) => {
                     const cursor = event.target.result;
-                    if (cursor) {
-                        const chatData = cursor.value;
-                        if (chatData && typeof chatData === 'object') {
-                            // compute size, title, messageCount, preview
-                            const size = new Blob([JSON.stringify(chatData)]).size;
-                            const title = chatData.chatTitle 
-                                           || chatData.preview?.slice(0, 50) 
-                                           || 'Untitled Chat';
-                            const messageCount = chatData.messages?.length || 0;
-                            const preview = chatData.preview;
-
-                            // Detailed console logging for Untitled Chats only
-                            if (title === 'Untitled Chat') {
-                                console.groupCollapsed(`Untitled Chat Detected (ID: ${cursor.key})`);
-                                console.log('Raw chatData:', chatData);
-                                console.log('Computed size (bytes):', size);
-                                console.log('Message count:', messageCount);
-                                console.log('Preview content:', preview);
-                                console.groupEnd();
-                            }
-
-                            chats.push({
-                                id: cursor.key,
-                                title: title,
-                                size: size,
-                                messageCount: messageCount,
-                                preview: preview
-                            });
-                        }
-                        cursor.continue();
-                    } else {
+                    if (!cursor) {
                         resolve(chats);
+                        return;
                     }
+
+                    const chatData = cursor.value;
+                    if (chatData && typeof chatData === 'object') {
+                        const size = new Blob([JSON.stringify(chatData)]).size;
+                        const hasTitle = Boolean(chatData.chatTitle);
+                        const title = chatData.chatTitle
+                            || chatData.preview?.slice(0, 50)
+                            || 'Untitled Chat';
+                        const messageCount = chatData.messages?.length || 0;
+                        const preview = chatData.preview;
+
+                        // log all chats that lack an explicit chatTitle
+                        if (!hasTitle) {
+                            console.groupCollapsed(`Untitled Chat Detected (ID: ${cursor.key})`);
+                            console.log('Computed title fallback:', title);
+                            console.log('Raw chatData:', chatData);
+                            console.log('Size (bytes):', size);
+                            console.log('Message count:', messageCount);
+                            console.log('Preview content:', preview);
+                            console.groupEnd();
+                        }
+
+                        chats.push({
+                            id: cursor.key,
+                            title,
+                            size,
+                            messageCount,
+                            preview
+                        });
+                    }
+                    cursor.continue();
                 };
             });
 
