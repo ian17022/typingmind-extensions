@@ -109,6 +109,24 @@
 
                     const chatData = cursor.value;
                     if (chatData && typeof chatData === 'object') {
+                        console.group('💾 Database Record');
+                        console.log('ID:', cursor.key);
+                        console.log('Type:', chatData.cacheGroup || 'chat');
+                        if (chatData.cacheGroup === 'attachment_parser') {
+                            console.log('--- PDF Data ---');
+                            console.log('Raw value.base64 (first 500 chars):');
+                            console.log(chatData.value?.base64?.substring(0, 500));
+                        } else if (cursor.key.startsWith('TM_use')) {
+                            console.log('--- System List ---');
+                            console.log('Full data:', JSON.stringify(chatData, null, 2));
+                        } else {
+                            console.log('--- Chat Data ---');
+                            console.log('Title:', chatData.chatTitle);
+                            console.log('Preview:', chatData.preview);
+                            console.log('Message count:', chatData.messages?.length);
+                        }
+                        console.log('Size:', new Blob([JSON.stringify(chatData)]).size, 'bytes');
+                        console.groupEnd();
                         const size = new Blob([JSON.stringify(chatData)]).size;
                         let title, isPDF = false, isSystemList = false;
                         
