@@ -85,6 +85,16 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Top 20</span>
     `;
 
+    function downloadObjectAsJson(exportObj, exportName){
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", exportName + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
     fileManagerButton.addEventListener('click', async function() {
         try {
             document.body.classList.add('overlay-open');
@@ -109,38 +119,13 @@
 
                     const chatData = cursor.value;
                     if (chatData && typeof chatData === 'object') {
-                        console.group('💾 Database Record');
-                        console.log('ID:', cursor.key);
-                        console.log('Type:', chatData.cacheGroup || 'chat');
-                        if (chatData.cacheGroup === 'attachment_parser') {
-                            console.log('--- PDF Data ---');
-                            console.log('Raw value.base64 (first 500 chars):');
-                            console.log(chatData.value?.base64?.substring(0, 500));
-                        } else if (cursor.key.startsWith('TM_use')) {
-                            console.log('--- System List ---');
-                            console.log('Full data:', JSON.stringify(chatData, null, 2));
-                        } else {
-                            console.log('--- Chat Data ---');
-                            console.log('Title:', chatData.chatTitle);
-                            console.log('Preview:', chatData.preview);
-                            console.log('Message count:', chatData.messages?.length);
-                        }
-                        console.log('Size:', new Blob([JSON.stringify(chatData)]).size, 'bytes');
-                        console.groupEnd();
                         const size = new Blob([JSON.stringify(chatData)]).size;
                         let title, isPDF = false, isSystemList = false;
                         
-                        if (chatData.cacheGroup === 'attachment_parser' && chatData.value?.base64) {
+                        if (chatData.cacheGroup === 'attachment_parser') {
                             isPDF = true;
-                            const match = chatData.value.base64.match(/<FILE_ATTACHMENT\s+name="([^"]+)">/);
+                            const match = chatData.value?.base64?.match(/<FILE_ATTACHMENT\s+name="([^"]+)">/);
                             title = match ? match[1] : 'Untitled.pdf';
-                            
-                            console.groupCollapsed(`📄 PDF Attachment (ID: ${cursor.key})`);
-                            console.log('File name:', title);
-                            console.log('Cache Group:', chatData.cacheGroup);
-                            console.log('Expire At:', chatData.expireAt);
-                            console.log('Size:', size);
-                            console.groupEnd();
                         }
                         else if (cursor.key.startsWith('TM_use')) {
                             isSystemList = true;
@@ -157,26 +142,11 @@
                                 default:
                                     title = cursor.key;
                             }
-                            
-                            console.groupCollapsed(`⚙️ System List (ID: ${cursor.key})`);
-                            console.log('Type:', title);
-                            console.log('Raw Data:', chatData);
-                            console.log('Size:', size);
-                            console.groupEnd();
                         }
                         else {
                             title = chatData.chatTitle 
                                 || chatData.preview?.slice(0, 50) 
                                 || 'Untitled Chat';
-                                
-                            if (!chatData.chatTitle) {
-                                console.groupCollapsed(`💬 Untitled Chat (ID: ${cursor.key})`);
-                                console.log('Computed title:', title);
-                                console.log('Raw Data:', chatData);
-                                console.log('Size:', size);
-                                console.log('Messages:', chatData.messages?.length || 0);
-                                console.groupEnd();
-                            }
                         }
 
                         chats.push({
@@ -186,7 +156,8 @@
                             messageCount: chatData.messages?.length || 0,
                             preview: chatData.preview,
                             isPDF,
-                            isSystemList
+                            isSystemList,
+                            rawData: chatData  // Include raw data for export
                         });
                     }
                     cursor.continue();
@@ -233,37 +204,60 @@
                                         </div>
                                     ` : ''}
                                 </div>
-                                <button 
-                                    class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
-                                    onclick="(async function() { 
-                                        if(confirm('Delete this chat?')) {
-                                            try {
-                                                const request = indexedDB.open('keyval-store', 1);
-                                                request.onsuccess = (event) => {
-                                                    const db = event.target.result;
-                                                    const tx = db.transaction(['keyval'], 'readwrite');
-                                                    const store = tx.objectStore('keyval');
-                                                    const deleteRequest = store.delete('${chat.id}');
-                                                    deleteRequest.onsuccess = () => {
-                                                        const element = document.getElementById('chat-item-${chat.id}');
-                                                        if (element) {
-                                                            element.style.opacity = '0';
-                                                            setTimeout(() => element.remove(), 300);
-                                                        }
+                                <div class="flex gap-2">
+                                    <button 
+                                        class="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
+                                        onclick="(${function() {
+                                            const chatData = ${JSON.stringify(chat)};
+                                            const fileName = 'chat-metadata-' + chatData.id;
+                                            const dataStr = 'data:text/json;charset=utf-8,' + 
+                                                encodeURIComponent(JSON.stringify(chatData.rawData, null, 2));
+                                            const a = document.createElement('a');
+                                            a.href = dataStr;
+                                            a.download = fileName + '.json';
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            a.remove();
+                                        }})()">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                        </svg>
+                                        Export
+                                    </button>
+                                    <button 
+                                        class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
+                                        onclick="(async function() { 
+                                            if(confirm('Delete this chat?')) {
+                                                try {
+                                                    const request = indexedDB.open('keyval-store', 1);
+                                                    request.onsuccess = (event) => {
+                                                        const db = event.target.result;
+                                                        const tx = db.transaction(['keyval'], 'readwrite');
+                                                        const store = tx.objectStore('keyval');
+                                                        const deleteRequest = store.delete('${chat.id}');
+                                                        deleteRequest.onsuccess = () => {
+                                                            const element = document.getElementById('chat-item-${chat.id}');
+                                                            if (element) {
+                                                                element.style.opacity = '0';
+                                                                setTimeout(() => element.remove(), 300);
+                                                            }
+                                                        };
                                                     };
-                                                };
-                                            } catch (error) {
-                                                console.error('Error deleting chat:', error);
-                                                alert('Error deleting chat');
+                                                } catch (error) {
+                                                    console.error('Error deleting chat:', error);
+                                                    alert('Error deleting chat');
+                                                }
                                             }
-                                        }
-                                    })()"
-                                >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                    Delete
-                                </button>
+                                        })()"
+                                    >
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
