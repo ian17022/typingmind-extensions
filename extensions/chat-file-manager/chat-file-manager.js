@@ -207,18 +207,8 @@
                                 <div class="flex gap-2">
                                     <button 
                                         class="px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
-                                        onclick="(function() {
-                                            const chatData = ${JSON.stringify(chat)};
-                                            const fileName = 'chat-metadata-' + chatData.id;
-                                            const dataStr = 'data:text/json;charset=utf-8,' + 
-                                                encodeURIComponent(JSON.stringify(chatData.rawData, null, 2));
-                                            const a = document.createElement('a');
-                                            a.href = dataStr;
-                                            a.download = fileName + '.json';
-                                            document.body.appendChild(a);
-                                            a.click();
-                                            a.remove();
-                                        })()"
+                                        onclick="window.downloadChatMetadata('${chat.id}', ${JSON.stringify(chat.rawData)})"
+                                    >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -263,6 +253,19 @@
                     </div>
                 </div>
             `;
+
+            // Add the download function to window scope
+            window.downloadChatMetadata = function(id, data) {
+                const fileName = 'chat-metadata-' + id;
+                const dataStr = 'data:text/json;charset=utf-8,' + 
+                    encodeURIComponent(JSON.stringify(data, null, 2));
+                const a = document.createElement('a');
+                a.href = dataStr;
+                a.download = fileName + '.json';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            };
 
             overlay.classList.remove('hidden');
 
