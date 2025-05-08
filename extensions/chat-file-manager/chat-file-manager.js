@@ -85,18 +85,23 @@
         <span class="font-normal self-stretch text-center text-xs leading-4 md:leading-none">Top 20</span>
     `;
 
+    // Store metadata globally
+    window.chatMetadata = new Map();
+
     document.addEventListener('click', function(e) {
         if (e.target.closest('.export-metadata-btn')) {
             const btn = e.target.closest('.export-metadata-btn');
-            const data = JSON.parse(decodeURIComponent(btn.dataset.metadata));
             const id = btn.dataset.id;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `chat-metadata-${id}.json`);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const data = window.chatMetadata.get(id);
+            if (data) {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", `chat-metadata-${id}.json`);
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            }
         }
     });
 
@@ -154,6 +159,9 @@
                                 || 'Untitled Chat';
                         }
 
+                        // Store metadata globally
+                        window.chatMetadata.set(cursor.key, chatData);
+
                         chats.push({
                             id: cursor.key,
                             title,
@@ -161,8 +169,7 @@
                             messageCount: chatData.messages?.length || 0,
                             preview: chatData.preview,
                             isPDF,
-                            isSystemList,
-                            rawData: chatData
+                            isSystemList
                         });
                     }
                     cursor.continue();
@@ -213,7 +220,6 @@
                                     <button 
                                         class="export-metadata-btn px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 whitespace-nowrap"
                                         data-id="${chat.id}"
-                                        data-metadata='${JSON.stringify(chat.rawData)}'
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
